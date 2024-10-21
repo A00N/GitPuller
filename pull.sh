@@ -15,7 +15,8 @@ repos=(
 update_progress() {
     local repo_index=$1
     local status=$2
-    local repo_name=$(basename "${repos[$repo_index]}" .git)
+    local repo_name
+    repo_name=$(basename "${repos[$repo_index]}" .git)
     printf "\033[%sH\033[K%-30s %s" $((repo_index + 2)) "$repo_name" "$status"
 }
  
@@ -26,16 +27,15 @@ show_progress() {
     local spin='/-\|'
     local i=0
  
-    while kill -0 $pid 2>/dev/null; do
-        update_progress $repo_index "${spin:i++%4:1}"
+    while kill -0 "$pid" 2>/dev/null; do
+        update_progress "$repo_index" "${spin:i++%4:1}"
         sleep 0.1
     done
  
-    wait $pid
-    if [ $? -eq 0 ]; then
-        update_progress $repo_index "Done"
+    if wait "$pid"; then
+        update_progress "$repo_index" "Done"
     else
-        update_progress $repo_index "Failed"
+        update_progress "$repo_index" "Failed"
     fi
 }
  
@@ -43,18 +43,19 @@ show_progress() {
 pull_or_clone_repo() {
     local repo_index=$1
     local repo_url="${repos[$repo_index]}"
-    local repo_name=$(basename "$repo_url" .git)
+    local repo_name
+    repo_name=$(basename "$repo_url" .git)
     local repo_path="$projects_dir/$repo_name"
  
     if [ -d "$repo_path" ]; then
-        update_progress $repo_index "Updating"
+        update_progress "$repo_index" "Updating"
         (cd "$repo_path" && git pull origin main > /dev/null 2>&1) &
     else
-        update_progress $repo_index "Cloning"
+        update_progress "$repo_index" "Cloning"
         git clone "$repo_url" "$repo_path" > /dev/null 2>&1 &
     fi
  
-    show_progress $! $repo_index
+    show_progress $! "$repo_index"
 }
  
 # Clear screen + print header
@@ -63,12 +64,12 @@ echo "Processing repositories:"
  
 # Init progress lines
 for i in "${!repos[@]}"; do
-    update_progress $i "Waiting"
+    update_progress "$i" "Waiting"
 done
  
 # Pull or clone in parallel
 for i in "${!repos[@]}"; do
-    pull_or_clone_repo $i &
+    pull_or_clone_repo "$i" &
 done
  
 # Wait for all parallel tasks to finish
